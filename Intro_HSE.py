@@ -9,7 +9,7 @@
 
 
 name = input()
-print('Добро пожаловать в DH, ' + name)
+print('GL HF, ' + name)
 
 
 # In[4]:
