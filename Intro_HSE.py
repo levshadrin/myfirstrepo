@@ -9,7 +9,7 @@
 
 
 name = input()
-print('GL HF, ' + name)
+print('GL HF, ' + name + 'Больше изменений богу изменений')
 
 
 # In[4]:
