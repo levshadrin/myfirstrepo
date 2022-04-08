@@ -1,0 +1,140 @@
+---
+title: 'hw1'
+author: "Лев Сергеевич Шадрин"
+output: html_document
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r, message=FALSE, include=FALSE}
+library(tidyverse)
+library("readxl")
+knitr::opts_chunk$set(message = FALSE)
+```
+
+## Задание 1.1
+
+На Pudding вышла [статья "Finding Forever Homes"](https://pudding.cool/2019/10/shelters/), посвященная миграции и эмиграции собак в США. В вашем репозитории лежит немного обработанный датасет `dog_names.csv`, которые использовался в статье. Датасет состоит из 58 113 строк и 5 переменных:
+
+* `id` -- уникальный  id с сервиса PetFinder
+* `name` -- кличка собаки
+* `sex` -- пол собаки (`Female`, `Male`, or `Unknown`)
+* `age` -- категориальная переменная с возрастом собаки (`Baby`, `Young`, `Adult`, `Senior`)
+* `contact_state` -- штат, в котором находится приют
+
+Заполните пропуски ниже, так чтобы получился следующий график. На нем изображено по 20 самых популярных кличек собак живущих в приютах в США для каждого пола. Обратите внимание на подписи осей. Нестанадртные цвета на этом графике появились благодаря команде `scale_fill_brewer(palette="Dark2")`.
+
+![](01_dog_names.png)
+### Решение 1.1
+
+```{r fig1, fig.asp = 0.8, fig.width = 8, out.width = '100%'}
+dog_names <- read_csv("dog_names.csv")
+
+dog_names %>%
+  group_by(sex) %>%
+  filter(sex != 'Unknown') %>%
+  count(name, sort = T) %>%
+  slice(1:20) %>%
+  ggplot(aes(fct_reorder(name, n), n, fill = sex))+
+  geom_col()+
+  coord_flip()+
+  facet_wrap(~ sex, scales = 'free_y')+
+  labs(x = '',
+       y = 'count',
+       caption = 'data from https://pudding.cool/2019/10/shelters/')+
+  scale_fill_brewer(palette = 'Dark2')
+```
+
+## Задание 1.2
+
+Используя датасет из предыдущего задания, заполните пропуски, так чтобы получившаяся программа считала, какую долю составляют собаки разного возраста в подгруппах по полу. Должно получиться что-то такое:
+
+```
+# A tibble: 4 x 3
+  age      Male Female
+  <chr>   <dbl>  <dbl>
+1 Adult  0.476  ...
+2 Young  ...    ...
+3 Baby   ...    ...
+4 Senior ...    ...
+```
+
+На всякий случай: доли в каждом из столбцов должны давать в сумме 1 (при округлении), если у Вас выходит значительно больше -- значит что-то Вы делаете не так, как ожидается. Постарайтесь, чтобы ответ получался в одну цепочку пайпов.
+
+### Решение 1.2
+
+```{r dog_age_tibble}
+dog_names %>%
+  group_by(sex, age) %>%
+  filter(sex != 'Unknown') %>%
+  summarize(n = n()) %>%
+  mutate(freq = n / sum(n)) %>%
+  select(-n) %>%
+  pivot_wider(names_from = 'sex',
+              values_from = 'freq') %>% 
+  select(age, Male, Female)
+```
+
+## Задание 1.3
+
+В датасете `seattle_public_library_checkouts.xlsx` содержится информация об объектах, выданных библиотекой Сиэтла 100 и более раз (исходные данные доступны [здесь](https://data.seattle.gov/dataset/Checkouts-by-Title-Physical-Items-/3h5r-qv5w))[^1]. Датасет состоит из разбитых на листы файла `.xlsx` 180 495 строк и  5 переменных:
+
+[^1]: Похоже, ссылка устарела. Схожий датасет (но другой, 11 колонок против 5) был найден [здесь](https://data.seattle.gov/Community/Checkouts-By-Title-Physical-Items-/5src-czff).
+
+* `id` -- идентификационный номер объекта
+* `type` -- тип объекта (`bk` -- книга, `bknh` -- другая категория с книгами, `cas` -- кассеты, `cd` -- CD, `dvd` -- DVD, `kit` -- комплект (я сам пока не разобрался что там...), `vhs` -- видеокассеты VHS)
+* `name` -- название
+* `n` -- сколько раз взяли в том или иному году
+* `year` -- год
+
+Используя датасет, заполните пропуски ниже, так чтобы получившаяся программа нарисовала следующий график. На графике изображены 100 самых популярных объектов за все годы.
+
+![](02_seattle.png)
+*Комментарий:*
+
+Пайплайн для загрузки нескольких листов в один датафрейм взят из [документации readxl](https://readxl.tidyverse.org/articles/readxl-workflows.html#concatenate-worksheets-into-one-data-frame).
+
+Также можно использовать конструкцию попроще с `bind_rows()`:
+
+```
+path <- 'seattle_public_library_checkouts.xlsx'
+
+d2005_alt <- path %>%
+  excel_sheets() %>%
+  set_names() %>%
+  map(read_excel, path = path) %>%
+  bind_rows(.id = 'year')
+```
+
+### Решение 1.3
+
+```{r fig2, fig.asp = 0.9, fig.width = 10, out.width = '100%'}
+path <- 'seattle_public_library_checkouts.xlsx'
+
+d2005 <- path %>%
+  excel_sheets() %>%
+  set_names() %>%
+  map_df(~ read_excel(path = path, sheet = .x), .id = 'year')
+
+d2005 %>%
+  group_by(type, name) %>%
+  summarize(total = sum(n)) %>%
+  arrange(desc(total)) %>%
+  ungroup() %>%
+  slice(1:100) %>%
+  ggplot(aes(fct_reorder(name, total), total, fill = type))+
+  geom_col(position = position_dodge(0.7))+
+  coord_flip()+
+  labs(x = '', 
+       y = '',
+       title = 'Most popular physical item checkouts from Seattle Public Library (2005-2019)',
+       caption = 'data from https://data.seattle.gov/')+ #см. сноску 1
+  theme(plot.title = element_text(hjust = 0.5),
+        axis.text = element_text(size = 7))
+```
+
+*Вопрос:*
+
+Так и не придумал, как сделать ограничение по количеству символов в подписях осей. 
+
+Cм. оригинальный график: `Indiana Jones and the kingdom of the ...`
